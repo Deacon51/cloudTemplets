@@ -1,0 +1,113 @@
+name: Windows_2019
+version: 1.1
+formatVersion: 1
+inputs:
+  hostname:
+    title: Hostname
+    description: Enter the Hostname
+    type: string
+    minLength: 4
+    maxLength: 12
+    pattern: '[a-zA-Z0-9]'
+  pirmaryDiskSize:
+    type: integer
+    minimum: 90
+    maximum: 500
+  disksize:
+    type: array
+    title: Additional Volumes
+    description: <b>Maximum of 5 addtional drives </b>
+    minItems: 0
+    maxItems: 5
+    items:
+      type: object
+      properties:
+        ID:
+          type: string
+          title: Disk
+        capacity:
+          type: integer
+          title: Capacity
+          description: |-
+            <b> Enter Volume capacity. </b> <br> 
+            Acceptable values: 4-1000 GB<br>
+          minimum: 4
+          maximum: 1000
+  vCPU:
+    type: integer
+    default: 2
+    minimum: 2
+    maximum: 16
+  memory:
+    title: Memory in GB
+    type: integer
+    default: 2
+    minimum: 1
+    maximum: 8
+resources:
+  Cloud_SaltStack_1:
+    type: Cloud.SaltStack
+    metadata:
+      layoutPosition:
+        - 0
+        - 1
+    properties:
+      hosts:
+        - ${resource.Windows.id}
+      masterId: saltstack_enterprise_installer
+      saltEnvironment: Windows
+      stateFiles:
+        - /testing/Eject.sls
+  Windows:
+    type: Cloud.vSphere.Machine
+    metadata:
+      layoutPosition:
+        - 1
+        - 1
+    allocatePerInstance: true
+    properties:
+      name: ${input.hostname}
+      #Infoblox.IPAM.Network.dnsSuffix: ges.cloud.ealabs.us
+      #Infoblox.IPAM.Network.dnsView: Internal
+      cpuCount: ${input.vCPU}
+      totalMemoryMB: ${input.memory * 1024}
+      image: Win2019
+      storage:
+        bootDiskCapacityInGB: ${input.pirmaryDiskSize}
+      attachedDisks: ${map_to_object(resource.disk[*].id, "source")}
+      #customizationSpec: Windows
+      tags:
+        - key: Owner
+          value: ${env.requestedBy}
+      remoteAccess:
+        authentication: usernamePassword
+        username: Administrator
+        password: 12qwaszx!@QWASZX
+      networks:
+        - network: ${resource.Cloud_vSphere_Network_1.id}
+      cloudConfig: |
+        #cloud-config
+        perserve_hostname: false
+        set_hostname: ${input.hostname}
+        write_files:
+          path: C:\temp\test.txt
+          content: Cloudbase-init worked on node ${self.resourceName} with a host name of ${input.hostname} requested by ${env.requestedBy} at ${env.requestedAt}
+  disk:
+    type: Cloud.Volume
+    metadata:
+      layoutPosition:
+        - 1
+        - 2
+    allocatePerInstance: true
+    properties:
+      count: ${length(input.disksize)}
+      capacityGb: ${input.disksize[count.index].capacity}
+      name: ${input.disksize[count.index].ID}
+  Cloud_vSphere_Network_1:
+    type: Cloud.vSphere.Network
+    metadata:
+      layoutPosition:
+        - 2
+        - 0
+    properties:
+      networkType: existing

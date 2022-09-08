@@ -1,0 +1,78 @@
+name: Windows10_Basic
+version: 1.2
+formatVersion: 1
+inputs:
+  hostname:
+    title: Hostname
+    description: Enter the Hostname
+    type: string
+    minLength: 4
+    maxLength: 12
+    pattren: '[a-zA-Z0-9]'
+  Flavor:
+    type: string
+    title: Size
+    default: Small
+    enum:
+      - Small
+      - Medium
+      - Large
+  disksize:
+    title: Disk Size
+    type: integer
+    minimum: 90
+    maximum: 500
+resources:
+  Cloud_vSphere_Network_1:
+    type: Cloud.vSphere.Network
+    metadata:
+      layoutPosition:
+        - 0
+        - 0
+    properties:
+      networkType: existing
+  Cloud_vSphere_Machine_1:
+    type: Cloud.vSphere.Machine
+    metadata:
+      layoutPosition:
+        - 1
+        - 1
+    properties:
+      type: Cloud.vSphere.Machine
+      image: Windows10
+      name: ${input.hostname}
+      flavor: ${input.Flavor}
+      storage:
+        bootDiskCapacityInGB: ${input.disksize}
+      tags:
+        - key: Owner
+          value: ${env.requestedBy}
+      remoteAccess:
+        authentication: usernamePassword
+        username: Administrator
+        password: 12qwaszx!@QWASZX
+      cloudConfig: |
+        #cloud-config
+        perserve_hostname: false
+        set_hostname: ${input.hostname}
+        runcmd:
+          -  netsh advfirewall firewall add rule name="Salt" dir=in action=allow protocol=TCP localport=4505-4506
+          -  netsh advfirewall firewall add rule name="SMB" dir=in action=allow protocol=TCP localport=139,445
+        write_files:
+          path: C:\temp\machine.info.txt
+          content: Cloudbase-init worked on node ${self.resourceName} with a host name of ${input.hostname} requested by ${env.requestedBy} at ${env.requestedAt}
+      networks:
+        - network: ${resource.Cloud_vSphere_Network_1.id}
+  Cloud_SaltStack_1:
+    type: Cloud.SaltStack
+    metadata:
+      layoutPosition:
+        - 2
+        - 1
+    properties:
+      hosts:
+        - ${resource.Cloud_vSphere_Machine_1.id}
+      masterId: saltstack_enterprise_installer
+      saltEnvironment: Windows
+      stateFiles:
+        - /testing/Eject.sls
