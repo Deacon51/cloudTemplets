@@ -1,0 +1,81 @@
+name: CentOS8_Stream
+version: 1.0
+formatVersion: 1
+inputs:
+  hostname:
+    title: Hostname
+    description: Enter the Hostname
+    type: string
+    minLength: 4
+    maxLength: 12
+    pattren: '[a-zA-Z0-9]'
+  Flavor:
+    type: string
+    title: Size
+    default: Small
+    enum:
+      - Small
+      - Medium
+      - Large
+  disksize:
+    title: Disk Size
+    type: integer
+    minimum: 90
+    maximum: 500
+resources:
+  Cloud_SaltStack_1:
+    type: Cloud.SaltStack
+    metadata:
+      layoutPosition:
+        - 0
+        - 0
+    properties:
+      hosts:
+        - ${resource.Cloud_Machine_1.id}
+      masterId: saltstack_enterprise_installer
+  Cloud_Machine_1:
+    type: Cloud.Machine
+    metadata:
+      layoutPosition:
+        - 1
+        - 1
+    properties:
+      image: CentOS
+      flavor: ${input.Flavor}
+      storage:
+        bootDiskCapacityInGB: ${input.disksize}
+      remoteAccess:
+        authentication: usernamePassword
+        username: Cloud
+        password: ${secret.defaultPassword}
+      name: ${input.hostname}
+      tags:
+        - key: owner
+          value: ${env.requestedBy}
+        - key: Blueprint
+          value: ${env.blueprintName}
+      cloudConfig: |
+        #cloud-config
+        perserve_hostname: false
+        set_hostname: ${input.hostname}
+        fqdn: ${(input.hostname)+".test.lab"}
+        repo_update: true
+        repo_upgrade: all
+        users:
+        - default
+        - name: Cloud
+          shell: '/bin/bash'
+          sudo: 'ALL=(ALL) NOPASSWD:ALL'
+        ssh_pwauth: True
+        chpasswd:
+          list: | 
+            Cloud:${secret.defaultPassword}
+          expire: False 
+        packages:
+          - cloud-utils-growpart
+
+        runcmd:
+         - eject
+         - sudo growpart /dev/sda 3
+         - sudo pvresize /dev/sda3
+         - sudo lvextend -r -l +100%FREE /dev/mapper/cl-root
