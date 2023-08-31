@@ -1,0 +1,90 @@
+name: Rocky9_Core
+version: 1
+formatVersion: 1
+inputs:
+  hostname:
+    title: Hostname
+    description: Enter the Hostname
+    type: string
+    minLength: 4
+    maxLength: 12
+    pattren: '[a-zA-Z0-9]'
+  Flavor:
+    type: string
+    title: Size
+    default: Small
+    enum:
+      - Small
+      - Medium
+      - Large
+  disksize:
+    title: Disk Size
+    type: integer
+    minimum: 90
+    maximum: 500
+  role:
+    title: Machine role
+    type: string
+    enum:
+      - testing
+      - webserver
+      - database
+      - application
+      - jumpbox
+    default: testing
+resources:
+  Cloud_Machine_1:
+    type: Cloud.vSphere.Machine
+    metadata:
+      layoutPosition:
+        - 0
+        - 1
+    properties:
+      ignoreActiveDirectory: true
+      image: Rocky9
+      flavor: ${input.Flavor}
+      storage:
+        bootDiskCapacityInGB: ${input.disksize}
+      remoteAccess:
+        username: Cloud-User
+        authentication: generatedPublicPrivateKey
+      name: ${input.hostname}
+      tags:
+        - key: owner
+          value: ${env.requestedBy}
+        - key: Blueprint
+          value: ${env.blueprintName}
+      cloudConfigSettings:
+        deploymentFailOnCloudConfigRuntimeError: true
+      cloudConfig: |
+        #cloud-config
+        perserve_hostname: false
+        set_hostname: ${self.resourceName}
+        fqdn: ${self.resourceName}.test.lab
+        repo_update: true
+        repo_upgrade: all
+        users:
+        - default
+        - name: Cloud-User
+          shell: '/bin/bash'
+          sudo: 'ALL=(ALL) NOPASSWD:ALL'
+        rsyslog:
+          configs:
+            - "*.* @172.16.53.229"
+        runcmd:
+         - eject
+         - firewall-cmd --permanent --add-port=4505-4506/tcp
+         - systemctl restart rsyslog
+         - firewall-cmd --reload
+         - curl -L https://bootstrap.saltstack.com -o install_salt.sh
+         - sudo sh install_salt.sh -A ${propgroup.SaltStackConfiguration.masterAddress}
+      networks:
+        - network: ${resource.Cloud_NSX_Network_1.id}
+  Cloud_NSX_Network_1:
+    type: Cloud.NSX.Network
+    metadata:
+      layoutPosition:
+        - 1
+        - 0
+    properties:
+      networkType: existing
